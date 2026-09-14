@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Classroom Sign-Out</title>
+<style>
+  :root{
+    --paper:#e9eef1;
+    --panel:#ffffff;
+    --ink:#17324d;
+    --ink-soft:#5c7186;
+    --line:#d2dce2;
+    --drink:#0e9c8c;
+    --bath:#e0871a;
+    --sensory:#6a5ac0;
+    --other:#5f7285;
+    --alert:#e23a3a;
+    --alert-deep:#a51818;
+    --ok:#2e9e5b;
+    --num-font: ui-rounded, "SF Pro Rounded", -apple-system, system-ui, "Segoe UI", Roboto, sans-serif;
+    --font: -apple-system, system-ui, "Segoe UI", Roboto, sans-serif;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0; height:100%;}
+  body{
+    font-family:var(--font);
+    background:var(--paper);
+    color:var(--ink);
+    -webkit-user-select:none; user-select:none;
+    touch-action:manipulation;
+    display:flex; flex-direction:column; min-height:100%;
+    padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+
+  header{
+    display:flex; align-items:center; gap:16px;
+    padding:14px 20px;
+    background:var(--panel);
+    border-bottom:1px solid var(--line);
+    flex-wrap:wrap;
+  }
+  header h1{
+    font-family:var(--num-font);
+    font-size:22px; font-weight:800; margin:0;
+    letter-spacing:-0.01em;
+  }
+  .clock{
+    font-family:var(--num-font);
+    font-variant-numeric:tabular-nums;
+    font-weight:700; font-size:20px; color:var(--ink-soft);
+    margin-left:auto;
+  }
+  .gear{
+    border:1px solid var(--line); background:var(--panel);
+    border-radius:12px; padding:9px 14px; font-size:15px; font-weight:600;
+    color:var(--ink); cursor:pointer;
+  }
+  .gear:active{background:#eef2f5;}
+
+  /* Out-now strip: the teacher's glance target */
+  .outbar{
+    display:flex; gap:10px; align-items:center; flex-wrap:wrap;
+    padding:12px 20px; min-height:56px;
+    background:linear-gradient(#f3f7f9,#eef3f6);
+    border-bottom:1px solid var(--line);
+  }
+  .outbar .lead{ font-weight:700; color:var(--ink-soft); font-size:15px; margin-right:2px;}
+  .chip{
+    display:inline-flex; align-items:center; gap:8px;
+    background:var(--panel); border:1.5px solid var(--line);
+    border-radius:999px; padding:7px 13px 7px 9px; font-weight:700; font-size:16px;
+  }
+  .chip .dot{width:12px; height:12px; border-radius:50%;}
+  .chip .t{font-family:var(--num-font); font-variant-numeric:tabular-nums; color:var(--ink-soft);}
+
+  main{ padding:20px; flex:1; }
+  .grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fill, minmax(120px,1fr));
+    gap:14px;
+  }
+  .tile{
+    position:relative;
+    aspect-ratio:1/1;
+    border-radius:20px;
+    border:2px solid var(--line);
+    background:var(--panel);
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    cursor:pointer;
+    transition:transform .06s ease;
+  }
+  .tile:active{transform:scale(0.96);}
+  .tile .n{
+    font-family:var(--num-font);
+    font-weight:800; font-size:46px; line-height:1;
+    font-variant-numeric:tabular-nums;
+  }
+  .tile .state{ margin-top:8px; font-size:13px; font-weight:700; color:var(--ink-soft); min-height:16px;}
+  .tile.out{ color:#fff; border-color:transparent; }
+  .tile.out .state{ color:rgba(255,255,255,.92);}
+  .tile.out .timer{
+    margin-top:2px; font-family:var(--num-font); font-variant-numeric:tabular-nums;
+    font-weight:800; font-size:22px; color:#fff;
+  }
+  .tile[data-dest="drink"]{background:var(--drink);}
+  .tile[data-dest="bathroom"]{background:var(--bath);}
+  .tile[data-dest="sensory"]{background:var(--sensory);}
+  .tile[data-dest="other"]{background:var(--other);}
+
+  /* Modal */
+  .scrim{
+    position:fixed; inset:0; background:rgba(16,32,48,.55);
+    display:none; align-items:center; justify-content:center; padding:24px; z-index:50;
+  }
+  .scrim.show{display:flex;}
+  .modal{
+    background:var(--panel); border-radius:26px; padding:28px; width:min(560px,100%);
+    box-shadow:0 24px 60px rgba(16,32,48,.35);
+  }
+  .modal h2{ font-family:var(--num-font); font-size:26px; margin:0 0 4px;}
+  .modal p{ margin:0 0 20px; color:var(--ink-soft); font-size:16px;}
+  .dests{ display:grid; grid-template-columns:1fr 1fr; gap:14px;}
+  .db{
+    border:none; border-radius:18px; color:#fff; font-weight:800; font-size:19px;
+    padding:26px 10px; cursor:pointer; font-family:var(--num-font);
+  }
+  .db:active{filter:brightness(.94);}
+  .db.drink{background:var(--drink);}
+  .db.bathroom{background:var(--bath);}
+  .db.sensory{background:var(--sensory);}
+  .db.other{background:var(--other);}
+  .backbtn{
+    width:100%; border:none; border-radius:18px; background:var(--ok); color:#fff;
+    font-weight:800; font-size:22px; padding:24px; cursor:pointer; font-family:var(--num-font);
+  }
+  .backbtn:active{filter:brightness(.94);}
+  .cancel{
+    width:100%; margin-top:14px; background:none; border:1.5px solid var(--line);
+    border-radius:14px; padding:14px; font-weight:700; font-size:16px; color:var(--ink-soft); cursor:pointer;
+  }
+  .trip-info{ display:flex; align-items:center; gap:10px; margin-bottom:20px; font-size:17px; font-weight:700;}
+  .trip-info .dot{width:16px;height:16px;border-radius:50%;}
+
+  /* Settings */
+  .settings label{ display:block; font-weight:700; font-size:14px; margin:16px 0 6px;}
+  .settings input{
+    width:100%; padding:12px 14px; border:1.5px solid var(--line); border-radius:12px;
+    font-size:16px; font-family:var(--font); color:var(--ink);
+  }
+  .row2{ display:grid; grid-template-columns:1fr 1fr; gap:12px;}
+  .toggle{ display:flex; align-items:center; justify-content:space-between; padding:14px 0; border-top:1px solid var(--line);}
+  .toggle span{font-weight:700;}
+  .hint{ font-size:13px; color:var(--ink-soft); line-height:1.5; margin:6px 0 0;}
+  .setactions{ display:flex; gap:12px; margin-top:22px; flex-wrap:wrap;}
+  .setactions button{
+    flex:1; min-width:130px; border-radius:14px; padding:14px; font-weight:800; font-size:15px; cursor:pointer;
+    border:1.5px solid var(--line); background:var(--panel); color:var(--ink);
+  }
+  .setactions .primary{ background:var(--ink); color:#fff; border-color:var(--ink);}
+  .setactions .danger{ color:var(--alert); border-color:#f0c4c4;}
+  .status-note{ font-size:14px; margin-top:10px; min-height:18px; font-weight:700;}
+  .divider{height:1px;background:var(--line);margin:20px 0;}
+  .sw{ position:relative; width:52px; height:30px; background:var(--line); border-radius:999px; cursor:pointer; transition:background .15s;}
+  .sw.on{background:var(--ok);}
+  .sw::after{content:""; position:absolute; top:3px; left:3px; width:24px; height:24px; border-radius:50%; background:#fff; transition:left .15s;}
+  .sw.on::after{left:25px;}
+</style>
+</head>
+<body>
+  <header>
+    <h1>Room sign-out</h1>
+    <div class="clock" id="clock">--:--</div>
+    <button class="gear" id="gearBtn">Settings</button>
+  </header>
+
+  <div class="outbar" id="outbar">
+    <span class="lead">Everyone's in the room</span>
+  </div>
+
+  <main>
+    <div class="grid" id="grid"></div>
+  </main>
+
+  <!-- Leave modal -->
+  <div class="scrim" id="leaveScrim">
+    <div class="modal">
+      <h2 id="leaveTitle">Student</h2>
+      <p>Where are you going?</p>
+      <div class="dests">
+        <button class="db drink" data-d="drink">Drink</button>
+        <button class="db bathroom" data-d="bathroom">Bathroom</button>
+        <button class="db sensory" data-d="sensory">Sensory hallway</button>
+        <button class="db other" data-d="other">Other</button>
+      </div>
+      <button class="cancel" data-close>Never mind</button>
+    </div>
+  </div>
+
+  <!-- Return modal -->
+  <div class="scrim" id="returnScrim">
+    <div class="modal">
+      <h2 id="returnTitle">Student</h2>
+      <div class="trip-info" id="returnInfo"></div>
+      <button class="backbtn" id="confirmBack">I'm back in the room</button>
+      <button class="cancel" data-close>Not yet</button>
+    </div>
+  </div>
+
+  <!-- Settings modal -->
+  <div class="scrim" id="setScrim">
+    <div class="modal settings">
+      <h2>Settings</h2>
+
+      <label for="thr">Alert after how many minutes out?</label>
+      <input id="thr" type="number" min="1" max="60" step="1" value="5">
+
+      <div class="divider"></div>
+      <p class="hint" style="margin-top:0"><strong>Email alerts (optional).</strong> A webpage can't email on its own, so this uses a free service called EmailJS. Make a free account at emailjs.com, create an email service and a template, then paste the three codes below. Leave blank to use on-screen alerts only.</p>
+
+      <label for="mailTo">Send alerts to</label>
+      <input id="mailTo" type="email" value="amcclurg@gccsmi.org">
+
+      <div class="row2">
+        <div><label for="svc">EmailJS service ID</label><input id="svc" type="text" placeholder="service_xxxxxxx"></div>
+        <div><label for="tpl">EmailJS template ID</label><input id="tpl" type="text" placeholder="template_xxxxxxx"></div>
+      </div>
+      <label for="pub">EmailJS public key</label>
+      <input id="pub" type="text" placeholder="XXXXXXXXXXXXXXXX">
+      <p class="hint">Your template should include the variables <code>{{message}}</code> and <code>{{to_email}}</code>. The email never contains a name — only the student number.</p>
+      <button class="cancel" id="testMail" style="margin-top:14px; color:var(--ink);">Send a test email</button>
+
+      <div class="status-note" id="setNote"></div>
+
+      <div class="setactions">
+        <button class="primary" id="saveSet">Save</button>
+        <button id="exportBtn">Export today's log (CSV)</button>
+        <button class="danger" id="resetBtn">Start a new day</button>
+      </div>
+    </div>
+  </div>
+
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+<script>
+(function(){
+  "use strict";
+  var COUNT = 28;
+  var LABEL = {drink:"Drink", bathroom:"Bathroom", sensory:"Sensory hallway", other:"Other"};
+  var DOT   = {drink:"#0e9c8c", bathroom:"#e0871a", sensory:"#6a5ac0", other:"#5f7285"};
+
+  // ---------- state ----------
+  var students = [];   // {status:'in'|'out', dest, since, notified}
+  var log = [];        // {n, dest, out, in, sec}
+  var settings = { thr:5, mailTo:"amcclurg@gccsmi.org", svc:"", tpl:"", pub:"" };
+
+  function blank(){ var a=[]; for(var i=0;i<COUNT;i++) a.push({status:"in",dest:null,since:null,notified:false}); return a; }
+
+  // ---------- persistence (safe: works on iPad, no-ops in restricted previews) ----------
+  function save(){
+    try{
+      localStorage.setItem("signout.students", JSON.stringify(students));
+      localStorage.setItem("signout.log", JSON.stringify(log));
+      localStorage.setItem("signout.settings", JSON.stringify(settings));
+    }catch(e){}
+  }
+  function load(){
+    try{
+      var s=localStorage.getItem("signout.students");
+      var l=localStorage.getItem("signout.log");
+      var c=localStorage.getItem("signout.settings");
+      students = s ? JSON.parse(s) : blank();
+      log = l ? JSON.parse(l) : [];
+      if(c){ var cc=JSON.parse(c); for(var k in cc){ settings[k]=cc[k]; } }
+    }catch(e){ students=blank(); log=[]; }
+    if(!students || students.length!==COUNT) students=blank();
+  }
+
+  // ---------- helpers ----------
+  function fmt(sec){
+    var m=Math.floor(sec/60), s=sec%60;
+    return m+":"+(s<10?"0":"")+s;
+  }
+  function clockStr(d){
+    var h=d.getHours(), m=d.getMinutes();
+    var ap = h>=12?"PM":"AM"; var hh=h%12; if(hh===0) hh=12;
+    return hh+":"+(m<10?"0":"")+m+" "+ap;
+  }
+  function el(id){ return document.getElementById(id); }
+
+  // ---------- rendering ----------
+  var grid = el("grid");
+  function buildGrid(){
+    grid.innerHTML="";
+    for(var i=0;i<COUNT;i++){
+      (function(idx){
+        var t=document.createElement("div");
+        t.className="tile"; t.id="tile"+idx;
+        t.innerHTML='<div class="n">'+(idx+1)+'</div><div class="state">In the room</div>';
+        t.addEventListener("click", function(){ tileTap(idx); });
+        grid.appendChild(t);
+      })(i);
+    }
+  }
+
+  function paint(){
+    var now=Date.now();
+    var outChips=[];
+    for(var i=0;i<COUNT;i++){
+      var st=students[i], t=el("tile"+i);
+      if(!t) continue;
+      if(st.status==="in"){
+        t.className="tile";
+        t.removeAttribute("data-dest");
+        t.innerHTML='<div class="n">'+(i+1)+'</div><div class="state">In the room</div>';
+      }else{
+        var sec=Math.floor((now-st.since)/1000);
+        t.className="tile out";
+        t.setAttribute("data-dest", st.dest);
+        t.innerHTML='<div class="n">'+(i+1)+'</div>'+
+          '<div class="timer">'+fmt(sec)+'</div>'+
+          '<div class="state">'+LABEL[st.dest]+'</div>';
+        outChips.push({n:i+1, dest:st.dest, sec:sec});
+      }
+    }
+    // out-now strip
+    var bar=el("outbar");
+    if(outChips.length===0){
+      bar.innerHTML='<span class="lead">Everyone\'s in the room</span>';
+    }else{
+      outChips.sort(function(a,b){ return b.sec-a.sec; });
+      var html='<span class="lead">Out now ('+outChips.length+'):</span>';
+      outChips.forEach(function(c){
+        html+='<span class="chip">'+
+              '<span class="dot" style="background:'+DOT[c.dest]+'"></span>'+
+              c.n+' <span class="t">'+fmt(c.sec)+'</span></span>';
+      });
+      bar.innerHTML=html;
+    }
+  }
+
+  // ---------- actions ----------
+  var leaveIdx=null, returnIdx=null;
+  function tileTap(i){
+    if(students[i].status==="in") openLeave(i); else openReturn(i);
+  }
+  function openLeave(i){
+    leaveIdx=i;
+    el("leaveTitle").textContent="Student "+(i+1);
+    el("leaveScrim").classList.add("show");
+  }
+  function chooseDest(d){
+    if(leaveIdx===null) return;
+    students[leaveIdx]={status:"out", dest:d, since:Date.now(), notified:false};
+    el("leaveScrim").classList.remove("show");
+    leaveIdx=null; save(); paint();
+  }
+  function openReturn(i){
+    returnIdx=i;
+    var st=students[i];
+    var sec=Math.floor((Date.now()-st.since)/1000);
+    el("returnTitle").textContent="Student "+(i+1);
+    el("returnInfo").innerHTML='<span class="dot" style="background:'+DOT[st.dest]+'"></span>'+
+      LABEL[st.dest]+' &middot; out '+fmt(sec);
+    el("returnScrim").classList.add("show");
+  }
+  function signIn(){
+    if(returnIdx===null) return;
+    var st=students[returnIdx];
+    var outTs=st.since, inTs=Date.now();
+    log.push({ n:returnIdx+1, dest:st.dest, out:outTs, in:inTs, sec:Math.floor((inTs-outTs)/1000) });
+    students[returnIdx]={status:"in",dest:null,since:null,notified:false};
+    el("returnScrim").classList.remove("show");
+    returnIdx=null; save(); paint();
+  }
+
+  // ---------- over-time: email only, once per trip ----------
+  function checkOvertime(){
+    var now=Date.now(), thrSec=settings.thr*60;
+    for(var i=0;i<COUNT;i++){
+      var st=students[i];
+      if(st.status==="out" && !st.notified){
+        var sec=Math.floor((now-st.since)/1000);
+        if(sec>=thrSec){
+          st.notified=true; save();
+          sendMail(i+1, st.dest, Math.round(sec/60), st.since);
+        }
+      }
+    }
+  }
+
+  // ---------- email via EmailJS ----------
+  function mailReady(){ return settings.svc && settings.tpl && settings.pub && typeof emailjs!=="undefined"; }
+  function initMail(){ try{ if(settings.pub && typeof emailjs!=="undefined") emailjs.init({publicKey:settings.pub}); }catch(e){} }
+  function sendMail(n, dest, mins, since){
+    if(!mailReady()) return;
+    var msg="Student "+n+" has been out ("+LABEL[dest]+") for "+mins+"+ minutes. Left at "+clockStr(new Date(since))+".";
+    try{
+      emailjs.send(settings.svc, settings.tpl, {
+        to_email: settings.mailTo, student:"Student "+n, destination:LABEL[dest],
+        minutes:mins, message:msg
+      });
+    }catch(e){}
+  }
+
+  // ---------- tick ----------
+  function tick(){
+    el("clock").textContent=clockStr(new Date());
+    paint();
+    checkOvertime();
+  }
+
+  // ---------- settings UI ----------
+  function openSettings(){
+    el("thr").value=settings.thr;
+    el("mailTo").value=settings.mailTo;
+    el("svc").value=settings.svc;
+    el("tpl").value=settings.tpl;
+    el("pub").value=settings.pub;
+    el("setNote").textContent="";
+    el("setScrim").classList.add("show");
+  }
+  function saveSettings(){
+    var t=parseInt(el("thr").value,10); if(isNaN(t)||t<1) t=5;
+    settings.thr=t;
+    settings.mailTo=el("mailTo").value.trim();
+    settings.svc=el("svc").value.trim();
+    settings.tpl=el("tpl").value.trim();
+    settings.pub=el("pub").value.trim();
+    save(); initMail();
+    el("setNote").style.color="var(--ok)";
+    el("setNote").textContent="Saved.";
+    setTimeout(function(){ el("setScrim").classList.remove("show"); }, 500);
+  }
+  function testMail(){
+    saveSettings.silent=true;
+    settings.mailTo=el("mailTo").value.trim();
+    settings.svc=el("svc").value.trim();
+    settings.tpl=el("tpl").value.trim();
+    settings.pub=el("pub").value.trim();
+    initMail();
+    var note=el("setNote");
+    if(!mailReady()){ note.style.color="var(--alert)"; note.textContent="Fill in all three EmailJS codes first (and make sure you're online)."; return; }
+    note.style.color="var(--ink-soft)"; note.textContent="Sending test…";
+    try{
+      emailjs.send(settings.svc, settings.tpl, {
+        to_email:settings.mailTo, student:"Test", destination:"—", minutes:0,
+        message:"Test alert from your classroom sign-out board. If you got this, email alerts are working."
+      }).then(function(){ note.style.color="var(--ok)"; note.textContent="Test sent. Check your inbox."; },
+             function(err){ note.style.color="var(--alert)"; note.textContent="Couldn't send: check your codes and connection."; });
+    }catch(e){ note.style.color="var(--alert)"; note.textContent="Couldn't send: check your codes and connection."; }
+  }
+  function exportCSV(){
+    var rows=[["Student","Destination","Time out","Time in","Minutes out"]];
+    log.forEach(function(r){
+      rows.push([ r.n, LABEL[r.dest],
+        clockStr(new Date(r.out)), clockStr(new Date(r.in)),
+        (r.sec/60).toFixed(1) ]);
+    });
+    var csv=rows.map(function(r){ return r.map(function(c){ return '"'+String(c).replace(/"/g,'""')+'"'; }).join(","); }).join("\n");
+    var blob=new Blob([csv],{type:"text/csv"});
+    var a=document.createElement("a");
+    a.href=URL.createObjectURL(blob);
+    var d=new Date();
+    a.download="signout-log-"+d.getFullYear()+"-"+(d.getMonth()+1)+"-"+d.getDate()+".csv";
+    a.click();
+  }
+  function resetDay(){
+    if(!confirm("Start a new day? This clears who's out and today's log. Export first if you want to keep it.")) return;
+    students=blank(); log=[]; save(); paint();
+    el("setScrim").classList.remove("show");
+  }
+
+  // ---------- wire up ----------
+  document.querySelectorAll(".db").forEach(function(b){ b.addEventListener("click", function(){ chooseDest(b.getAttribute("data-d")); }); });
+  el("confirmBack").addEventListener("click", signIn);
+  el("gearBtn").addEventListener("click", openSettings);
+  el("saveSet").addEventListener("click", saveSettings);
+  el("exportBtn").addEventListener("click", exportCSV);
+  el("resetBtn").addEventListener("click", resetDay);
+  el("testMail").addEventListener("click", testMail);
+  document.querySelectorAll("[data-close]").forEach(function(b){ b.addEventListener("click", function(){
+    b.closest(".scrim").classList.remove("show"); leaveIdx=null; returnIdx=null;
+  }); });
+  // tap scrim background to dismiss
+  document.querySelectorAll(".scrim").forEach(function(s){ s.addEventListener("click", function(e){ if(e.target===s){ s.classList.remove("show"); leaveIdx=null; returnIdx=null; } }); });
+
+  // ---------- go ----------
+  load(); buildGrid(); initMail(); tick();
+  setInterval(tick, 1000);
+})();
+</script>
+</body>
+</html>
